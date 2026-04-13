@@ -1,7 +1,10 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, Image, View, TouchableOpacity } from "react-native";
-import { colorsByType } from "./index"; // ✅ reuse shared colors
+import {
+  ScrollView, StyleSheet, Text, Image, View,
+  TouchableOpacity, useWindowDimensions
+} from "react-native";
+import { colorsByType } from "./index";
 
 interface PokemonType {
   slot: number;
@@ -18,13 +21,20 @@ interface Pokemon {
   image: string;
   imageBack: string;
   types: PokemonType[];
-  stats: PokemonStat[]; // ✅ added stats
+  stats: PokemonStat[];
 }
 
 export default function Details() {
   const [pokemon, setPokemon] = useState<Pokemon | null>(null);
   const { name } = useLocalSearchParams();
-  const router = useRouter(); // ✅ for back navigation
+  const router = useRouter();
+  const { width } = useWindowDimensions(); // ✅ track screen width
+
+  // ✅ responsive breakpoints
+  const isTablet = width >= 768;
+  const isDesktop = width >= 1024;
+  const maxWidth = isDesktop ? 900 : isTablet ? 700 : "100%";
+  const spriteSize = isDesktop ? 200 : isTablet ? 180 : 150;
 
   useEffect(() => {
     fetchPokemonByName(name as string).then((data) => {
@@ -34,7 +44,7 @@ export default function Details() {
         image: data.sprites.front_default,
         imageBack: data.sprites.back_default,
         types: data.types,
-        stats: data.stats, // ✅ store stats
+        stats: data.stats,
       });
     });
   }, [name]);
@@ -55,62 +65,102 @@ export default function Details() {
   const bgColor = colorsByType[primaryType] ?? "#ccc";
 
   return (
-    <ScrollView contentContainerStyle={{ gap: 16, padding: 16 }}>
+    <ScrollView contentContainerStyle={styles.scrollContent}>
 
-      {/* ✅ Back button */}
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Text style={styles.backText}>← Back</Text>
-      </TouchableOpacity>
+      {/* ✅ Centered container with max width */}
+      <View style={[styles.container, { maxWidth: maxWidth as any }]}>
 
-      {/* Header card */}
-      <View style={[styles.card, { backgroundColor: bgColor + "50" }]}>
-        <Text style={styles.name}>{pokemon.name}</Text>
+        {/* Back button */}
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
 
-        {/* ✅ Type badges */}
-        <View style={styles.badgeRow}>
-          {pokemon.types.map((t) => (
-            <View
-              key={t.type.name}
-              style={[styles.badge, { backgroundColor: colorsByType[t.type.name] ?? "#ccc" }]}
-            >
-              <Text style={styles.badgeText}>{t.type.name}</Text>
+        {/* ✅ On desktop: side-by-side layout for card + stats */}
+        <View style={[styles.contentRow, { flexDirection: isDesktop ? "row" : "column" }]}>
+
+          {/* Header card */}
+          <View style={[
+            styles.card,
+            { backgroundColor: bgColor + "50" },
+            isDesktop && { flex: 1 } // ✅ takes half width on desktop
+          ]}>
+            <Text style={styles.name}>{pokemon.name}</Text>
+
+            {/* Type badges */}
+            <View style={styles.badgeRow}>
+              {pokemon.types.map((t) => (
+                <View
+                  key={t.type.name}
+                  style={[styles.badge, { backgroundColor: colorsByType[t.type.name] ?? "#ccc" }]}
+                >
+                  <Text style={styles.badgeText}>{t.type.name}</Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
 
-        <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
-          <Image source={{ uri: pokemon.image }} style={{ width: 150, height: 150 }} />
-          <Image source={{ uri: pokemon.imageBack }} style={{ width: 150, height: 150 }} />
-        </View>
-      </View>
-
-      {/* ✅ Stats */}
-      <View style={styles.statsCard}>
-        <Text style={styles.statsTitle}>Base Stats</Text>
-        {pokemon.stats.map((s) => (
-          <View key={s.stat.name} style={styles.statRow}>
-            <Text style={styles.statName}>{s.stat.name}</Text>
-            <View style={styles.statBarBg}>
-              <View
-                style={[
-                  styles.statBarFill,
-                  {
-                    width: `${Math.min((s.base_stat / 255) * 100, 100)}%`,
-                    backgroundColor: bgColor,
-                  },
-                ]}
+            {/* ✅ Sprites scale with screen size */}
+            <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
+              <Image
+                source={{ uri: pokemon.image }}
+                style={{ width: spriteSize, height: spriteSize }}
+              />
+              <Image
+                source={{ uri: pokemon.imageBack }}
+                style={{ width: spriteSize, height: spriteSize }}
               />
             </View>
-            <Text style={styles.statValue}>{s.base_stat}</Text>
           </View>
-        ))}
-      </View>
 
+          {/* Stats card */}
+          <View style={[
+            styles.statsCard,
+            isDesktop && { flex: 1 } // ✅ takes other half on desktop
+          ]}>
+            <Text style={styles.statsTitle}>Base Stats</Text>
+            {pokemon.stats.map((s) => (
+              <View key={s.stat.name} style={styles.statRow}>
+                <Text style={[
+                  styles.statName,
+                  isTablet && { width: 120, fontSize: 14 } // ✅ wider label on tablet+
+                ]}>
+                  {s.stat.name}
+                </Text>
+                <View style={styles.statBarBg}>
+                  <View
+                    style={[
+                      styles.statBarFill,
+                      {
+                        width: `${Math.min((s.base_stat / 255) * 100, 100)}%`,
+                        backgroundColor: bgColor,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={[
+                  styles.statValue,
+                  isTablet && { fontSize: 14 }
+                ]}>
+                  {s.base_stat}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+        </View>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContent: {
+    alignItems: "center",
+    padding: 16,
+  },
+  container: {
+    width: "100%",
+    gap: 16,
+  },
   backButton: {
     alignSelf: "flex-start",
   },
@@ -118,6 +168,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#555",
+  },
+  contentRow: {
+    gap: 16,
   },
   card: {
     padding: 20,

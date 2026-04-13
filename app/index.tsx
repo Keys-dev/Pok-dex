@@ -1,6 +1,9 @@
 import { Link } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, ScrollView, Text, View, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import {
+  Image, ScrollView, Text, View, StyleSheet,
+  TextInput, TouchableOpacity, ActivityIndicator, useWindowDimensions
+} from "react-native";
 
 interface Pokemon {
   name: string;
@@ -44,13 +47,21 @@ export default function Index() {
   const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
+  const { width } = useWindowDimensions(); // ✅ track screen width
+
+  // ✅ responsive breakpoints
+  const isTablet = width >= 768;
+  const isDesktop = width >= 1024;
+  const numColumns = isDesktop ? 3 : isTablet ? 2 : 1;
+  const maxWidth = isDesktop ? 1200 : isTablet ? 800 : "100%";
+
   useEffect(() => {
     fetchPokemons();
   }, []);
 
   async function fetchPokemons() {
     try {
-      const response = await fetch("https://pokeapi.co/api/v2/pokemon?limit=10");
+      const response = await fetch("https://pokeapi.co/api/v2/pokemon?limit=20");
       const data = await response.json();
 
       const detailedPokemons = await Promise.all(
@@ -82,7 +93,7 @@ export default function Index() {
     try {
       const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${searchQuery.toLowerCase().trim()}`);
 
-      if (!res.ok) { // ✅ handle 404 from API
+      if (!res.ok) {
         setNotFound(true);
         return;
       }
@@ -108,72 +119,101 @@ export default function Index() {
     setNotFound(false);
   }
 
-  // ✅ show search result if present, otherwise show default list
   const displayList = searchResult ? [searchResult] : pokemons;
 
   return (
-    <ScrollView contentContainerStyle={{ gap: 16, padding: 16 }}>
+    <ScrollView contentContainerStyle={[styles.scrollContent]}>
 
-      {/* ✅ Search bar */}
-      <View style={styles.searchRow}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search Pokémon..."
-          value={searchQuery}
-          onChangeText={(text) => {
-            setSearchQuery(text);
-            if (text === "") clearSearch();
-          }}
-          onSubmitEditing={handleSearch} // ✅ search on keyboard "done"
-          autoCapitalize="none"
-        />
-        <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-          <Text style={styles.searchButtonText}>Search</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ✅ Centered container with max width */}
+      <View style={[styles.container, { maxWidth: maxWidth as any }]}>
 
-      {/* ✅ States */}
-      {searching && <ActivityIndicator size="large" />}
-      {notFound && <Text style={styles.notFound}>Pokémon not found. Try another name!</Text>}
+        {/* Title */}
+        <Text style={styles.title}>Pokédex</Text>
 
-      {/* ✅ List */}
-      {displayList.map((pokemon) => {
-        const primaryType = pokemon.types[0].type.name;
-        const bgColor = colorsByType[primaryType] ?? "#ccc";
+        {/* Search bar */}
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search Pokémon..."
+            value={searchQuery}
+            onChangeText={(text) => {
+              setSearchQuery(text);
+              if (text === "") clearSearch();
+            }}
+            onSubmitEditing={handleSearch}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
+            <Text style={styles.searchButtonText}>Search</Text>
+          </TouchableOpacity>
+        </View>
 
-        return (
-          <Link
-            key={pokemon.name}
-            href={{ pathname: "/details", params: { name: pokemon.name } }}
-            style={{ borderRadius: 20 }}
-          >
-            <View style={[styles.card, { backgroundColor: bgColor + "50" }]}>
-              <Text style={styles.name}>{pokemon.name}</Text>
+        {searching && <ActivityIndicator size="large" />}
+        {notFound && <Text style={styles.notFound}>Pokémon not found. Try another name!</Text>}
 
-              <View style={styles.badgeRow}>
-                {pokemon.types.map((t) => (
-                  <View
-                    key={t.type.name}
-                    style={[styles.badge, { backgroundColor: colorsByType[t.type.name] ?? "#ccc" }]}
-                  >
-                    <Text style={styles.badgeText}>{t.type.name}</Text>
+        {/* ✅ Responsive grid */}
+        <View style={[styles.grid, { gap: 16 }]}>
+          {displayList.map((pokemon) => {
+            const primaryType = pokemon.types[0].type.name;
+            const bgColor = colorsByType[primaryType] ?? "#ccc";
+
+            return (
+              <Link
+                key={pokemon.name}
+                href={{ pathname: "/details", params: { name: pokemon.name } }}
+                style={[
+                  styles.linkWrapper,
+                  {
+                    // ✅ divide into columns with gap accounted for
+                    width: numColumns === 1
+                      ? "100%"
+                      : `${(100 / numColumns) - 2}%`,
+                  }
+                ]}
+              >
+                <View style={[styles.card, { backgroundColor: bgColor + "50" }]}>
+                  <Text style={styles.name}>{pokemon.name}</Text>
+
+                  <View style={styles.badgeRow}>
+                    {pokemon.types.map((t) => (
+                      <View
+                        key={t.type.name}
+                        style={[styles.badge, { backgroundColor: colorsByType[t.type.name] ?? "#ccc" }]}
+                      >
+                        <Text style={styles.badgeText}>{t.type.name}</Text>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
 
-              <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
-                <Image source={{ uri: pokemon.image }} style={{ width: 150, height: 150 }} />
-                <Image source={{ uri: pokemon.imageBack }} style={{ width: 150, height: 150 }} />
-              </View>
-            </View>
-          </Link>
-        );
-      })}
+                  <View style={{ flexDirection: "row", justifyContent: "space-around" }}>
+                    <Image source={{ uri: pokemon.image }} style={styles.sprite} />
+                    <Image source={{ uri: pokemon.imageBack }} style={styles.sprite} />
+                  </View>
+                </View>
+              </Link>
+            );
+          })}
+        </View>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollContent: {
+    alignItems: "center",
+    padding: 16,
+  },
+  container: {
+    width: "100%",
+    gap: 16,
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 8,
+  },
   searchRow: {
     flexDirection: "row",
     gap: 8,
@@ -202,13 +242,21 @@ const styles = StyleSheet.create({
     color: "gray",
     fontSize: 15,
   },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",  // ✅ wraps into grid
+    justifyContent: "space-between",
+  },
+  linkWrapper: {
+    borderRadius: 20,
+  },
   card: {
     padding: 20,
     borderRadius: 20,
     width: "100%",
   },
   name: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: "bold",
     textAlign: "center",
     textTransform: "capitalize",
@@ -229,5 +277,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 13,
     textTransform: "capitalize",
+  },
+  sprite: {
+    width: 100,
+    height: 100,
   },
 });
